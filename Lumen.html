@@ -88,10 +88,22 @@
     <div id="canvas-container"></div>
     <script type="module">
         import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.module.js';
-        
+
+        const images = [
+            '1040g3g831ptabn7s3u06ecddp46hec0l70ino0o.jpg',
+            '1040g3g831ptabn7s3u0mecddp46hec0lcti2ht8.jpg',
+            '1040g3g831ptabn7s3u16ecddp46hec0lmsa2d28.jpg',
+            '1040g3g831ptabn7s3u1mecddp46hec0l10jk180.jpg',
+            '1040g3g831ptabn7s3u26ecddp46hec0l3k8uv7g.jpg',
+            '1040g3g831ptabn7s3u2mecddp46hec0le5esup0.jpg',
+            '1040g3g831ptabn7s3u36ecddp46hec0lsi4jvm8.jpg',
+            '1040g3g831ptabn7s3u3mecddp46hec0lul9argo.jpg',
+            '1040g3g831ptabn7s3u46ecddp46hec0l8bpvrfg.jpg'
+        ];
+
         // --- 配置参数 ---
         const CONFIG = {
-            cardCount: 9,
+            cardCount: images.length,
             cardWidth: 3.8,
             cardHeight: 4.8,
             gap: 2.2,
@@ -130,7 +142,7 @@
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
         renderer.toneMappingExposure = 1.1;
         renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap; 
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         container.appendChild(renderer.domElement);
 
         // --- 灯光 ---
@@ -153,58 +165,28 @@
         bottomLight.position.set(-5, -10, -5);
         scene.add(bottomLight);
 
-        // --- 辅助函数：生成艺术纹理 ---
-        function createGenerativeTexture(index) {
-            const canvas = document.createElement('canvas');
-            canvas.width = 512;
-            canvas.height = 720;
-            const ctx = canvas.getContext('2d');
-            const palettes = [
-                ['#FF4E50', '#F9D423'], 
-                ['#1A2980', '#26D0CE'], 
-                ['#E55D87', '#5FC3E4'], 
-                ['#141E30', '#243B55'], 
-                ['#D3CCE3', '#E9E4F0'], 
-                ['#4CA1AF', '#C4E0E5'], 
-                ['#2C3E50', '#FD746C'], 
-                ['#614385', '#516395'], 
-                ['#ffd89b', '#19547b']  
-            ];
-            const palette = palettes[index % palettes.length];
-            const gradient = ctx.createLinearGradient(0, 0, 512, 720);
-            gradient.addColorStop(0, palette[0]);
-            gradient.addColorStop(1, palette[1]);
-            ctx.fillStyle = gradient;
-            ctx.fillRect(0, 0, 512, 720);
-            
-            ctx.globalCompositeOperation = 'overlay';
-            ctx.beginPath();
-            ctx.arc(256, 360, 200, 0, Math.PI * 2);
-            ctx.fillStyle = 'rgba(255,255,255,0.1)';
-            ctx.fill();
-            ctx.beginPath();
-            ctx.moveTo(0, 720);
-            ctx.lineTo(512, 0);
-            ctx.strokeStyle = 'rgba(255,255,255,0.15)';
-            ctx.lineWidth = 100;
-            ctx.stroke();
-            const imageData = ctx.getImageData(0,0, 512, 720);
-            const data = imageData.data;
-            for(let i=0; i < data.length; i+=4) {
-                const noise = (Math.random() - 0.5) * 20;
-                data[i] += noise;
-                data[i+1] += noise;
-                data[i+2] += noise;
+        // --- 纹理加载与适配 ---
+        const loader = new THREE.TextureLoader();
+
+        function fitTextureToCard(texture) {
+            if (!texture.image) return;
+            const imageAspect = texture.image.width / texture.image.height;
+            const cardAspect = CONFIG.cardWidth / CONFIG.cardHeight;
+
+            texture.wrapS = texture.wrapT = THREE.ClampToEdgeWrapping;
+            texture.center.set(0.5, 0.5);
+
+            if (imageAspect > cardAspect) {
+                const scale = cardAspect / imageAspect;
+                texture.repeat.set(scale, 1);
+                texture.offset.set((1 - scale) / 2, 0);
+            } else {
+                const scale = imageAspect / cardAspect;
+                texture.repeat.set(1, scale);
+                texture.offset.set(0, (1 - scale) / 2);
             }
-            ctx.putImageData(imageData, 0, 0);
-            ctx.globalCompositeOperation = 'source-over';
-            ctx.fillStyle = 'rgba(255,255,255,0.95)';
-            ctx.font = 'bold 60px Inter, sans-serif';
-            ctx.fillText(`0${index+1}`, 40, 90);
-            
-            const texture = new THREE.CanvasTexture(canvas);
+
             texture.needsUpdate = true;
-            return texture;
         }
 
         // --- 创建卡片组 ---
@@ -212,7 +194,7 @@
         scene.add(cardsGroup);
         const cardMeshes = [];
         const geometry = new THREE.PlaneGeometry(CONFIG.cardWidth, CONFIG.cardHeight);
-        
+
         for (let i = 0; i < CONFIG.cardCount; i++) {
             const material = new THREE.MeshPhysicalMaterial({
                 color: 0xffffff,
@@ -225,7 +207,10 @@
                 clearcoat: 1.0,
                 clearcoatRoughness: 0.1,
             });
-            const texture = createGenerativeTexture(i);
+            const texture = loader.load(`image/${images[i]}`, (loadedTexture) => {
+                loadedTexture.colorSpace = THREE.SRGBColorSpace;
+                fitTextureToCard(loadedTexture);
+            });
             const contentMaterial = new THREE.MeshBasicMaterial({
                 map: texture,
                 transparent: true,
